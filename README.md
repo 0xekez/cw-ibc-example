@@ -69,7 +69,7 @@ contract_info:
   label: ekez-cw-ibc-example
 ```
 
-To establish a connecton between two contracts you will need too set
+To establish a connecton between two contracts you will need to set
 up a relayer. If you chose to use
 [hermes](https://hermes.informal.systems), after configuration the
 command to establish a connection is:
@@ -111,7 +111,7 @@ junod query wasm contract-state smart juno1fsay0zux2vkyrsqpepd08q2vlytrfu7gsqnap
 ## Troubleshooting
 
 1. Packets may take over a minute to be relayed. If your packet is not
-   sent instantly it is probably OK. Feel free to go for a smoke and
+   sent instantly it is probably OK. Feel free to take a break and
    come back.
 2. Hermes will not pick up packets that were sent while it was not
    running. Start your relayer and wait for the log line `Hermes has
