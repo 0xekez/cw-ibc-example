@@ -9,9 +9,9 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
-    #[error("Only unordered channels are supported.")]
+    #[error("only unordered channels are supported")]
     OrderedChannel {},
 
-    #[error("Invalid IBC channel version. Got ({actual}), expected ({expected}).")]
+    #[error("invalid IBC channel version. Got ({actual}), expected ({expected})")]
     InvalidVersion { actual: String, expected: String },
 }
