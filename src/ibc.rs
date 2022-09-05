@@ -2,8 +2,8 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, DepsMut, Env, IbcBasicResponse, IbcChannel, IbcChannelCloseMsg,
-    IbcChannelConnectMsg, IbcChannelOpenMsg, IbcOrder, IbcPacketAckMsg, IbcPacketReceiveMsg,
-    IbcPacketTimeoutMsg, IbcReceiveResponse, StdResult,
+    IbcChannelConnectMsg, IbcChannelOpenMsg, IbcMsg, IbcOrder, IbcPacketAckMsg,
+    IbcPacketReceiveMsg, IbcPacketTimeoutMsg, IbcReceiveResponse, IbcTimeout, StdResult,
 };
 
 use crate::{
@@ -105,16 +105,17 @@ pub fn execute_increment(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn ibc_packet_ack(
     _deps: DepsMut,
-    _env: Env,
-    _ack: IbcPacketAckMsg,
+    env: Env,
+    ack: IbcPacketAckMsg,
 ) -> Result<IbcBasicResponse, ContractError> {
-    // Nothing to do here. We don't keep any state about the other
-    // chain, just deliver messages so nothing to update.
-    //
-    // If we did care about how the other chain received our message
-    // we could deserialize the data field into an `Ack` and inspect
-    // it.
-    Ok(IbcBasicResponse::new().add_attribute("method", "ibc_packet_ack"))
+    // Play it back. ;)
+    Ok(IbcBasicResponse::new()
+        .add_attribute("method", "ibc_packet_ack")
+        .add_message(IbcMsg::SendPacket {
+            channel_id: ack.original_packet.src.channel_id,
+            data: ack.original_packet.data,
+            timeout: IbcTimeout::with_timestamp(env.block.time.plus_seconds(300)),
+        }))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

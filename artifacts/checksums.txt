@@ -1,1 +1,1 @@
-ea112fa5d4e1123c43adfe46a53cdcf7e8d8b068064a6f5fc97e83a4e2c704cb  cw_ibc_example.wasm
+cb94346b996b454fed773be0597e4a8f03e7a77f4a2f8a50fefaf7a18c20a109  cw_ibc_example.wasm
