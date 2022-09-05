@@ -15,6 +15,12 @@ At a high level, to use this contract:
 4. Use the `GetCount { connection }` query to determine the message
    count for a given connection.
 
+This repo also contains a demo contract which makes an infinite loop
+of contract calls over IBC. See the README on the
+[`zeke/ibc-replay`](https://github.com/ezekiiel/cw-ibc-example/tree/zeke/ibc-replay)
+branch for more information and an integration test that demonstrates
+this.
+
 ## Background
 
 To connect two CosmWasm contracts over IBC you must establish an IBC
