@@ -35,6 +35,7 @@ pub fn execute(
         ExecuteMsg::Increment { channel } => Ok(Response::new()
             .add_attribute("method", "execute_increment")
             .add_attribute("channel", channel.clone())
+            // outbound IBC message, where packet is then received on other chain
             .add_message(IbcMsg::SendPacket {
                 channel_id: channel,
                 data: to_binary(&IbcExecuteMsg::Increment {})?,
