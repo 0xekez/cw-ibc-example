@@ -8,10 +8,11 @@ use cosmwasm_std::{
 
 use crate::{
     ack::{make_ack_fail, make_ack_success},
+    contract::try_increment,
     error::Never,
     msg::IbcExecuteMsg,
     state::CONNECTION_COUNTS,
-    ContractError, contract::try_increment,
+    ContractError,
 };
 
 pub const IBC_VERSION: &str = "counter-1";
@@ -89,10 +90,7 @@ pub fn do_ibc_packet_receive(
     }
 }
 
-fn execute_increment(
-    deps: DepsMut,
-    channel: String,
-) -> Result<IbcReceiveResponse, ContractError> {
+fn execute_increment(deps: DepsMut, channel: String) -> Result<IbcReceiveResponse, ContractError> {
     let count = try_increment(deps, channel)?;
     Ok(IbcReceiveResponse::new()
         .add_attribute("method", "execute_increment")

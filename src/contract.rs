@@ -1,7 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, IbcMsg, IbcTimeout, MessageInfo, Response, StdResult, StdError,
+    to_binary, Binary, Deps, DepsMut, Env, IbcMsg, IbcTimeout, MessageInfo, Response, StdError,
+    StdResult,
 };
 use cw2::set_contract_version;
 
@@ -43,10 +44,7 @@ pub fn execute(
 }
 
 /// called on IBC packet receive in other chain
-pub fn try_increment(
-    deps: DepsMut,
-    channel: String,
-) -> Result<u32, StdError> {
+pub fn try_increment(deps: DepsMut, channel: String) -> Result<u32, StdError> {
     CONNECTION_COUNTS.update(deps.storage, channel, |count| -> StdResult<_> {
         Ok(count.unwrap_or_default() + 1)
     })
