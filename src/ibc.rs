@@ -3,7 +3,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, DepsMut, Env, IbcBasicResponse, IbcChannel, IbcChannelCloseMsg,
     IbcChannelConnectMsg, IbcChannelOpenMsg, IbcOrder, IbcPacketAckMsg, IbcPacketReceiveMsg,
-    IbcPacketTimeoutMsg, IbcReceiveResponse, StdResult,
+    IbcPacketTimeoutMsg, IbcReceiveResponse,
 };
 
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
     error::Never,
     msg::IbcExecuteMsg,
     state::CONNECTION_COUNTS,
-    ContractError,
+    ContractError, contract::try_increment,
 };
 
 pub const IBC_VERSION: &str = "counter-1";
@@ -89,13 +89,11 @@ pub fn do_ibc_packet_receive(
     }
 }
 
-pub fn execute_increment(
+fn execute_increment(
     deps: DepsMut,
     channel: String,
 ) -> Result<IbcReceiveResponse, ContractError> {
-    let count = CONNECTION_COUNTS.update(deps.storage, channel, |count| -> StdResult<_> {
-        Ok(count.unwrap_or_default() + 1)
-    })?;
+    let count = try_increment(deps, channel)?;
     Ok(IbcReceiveResponse::new()
         .add_attribute("method", "execute_increment")
         .add_attribute("count", count.to_string())
