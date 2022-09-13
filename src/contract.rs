@@ -1,7 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, IbcMsg, IbcTimeout, MessageInfo, Response, StdResult,
+    to_binary, Binary, Deps, DepsMut, Env, IbcMsg, IbcTimeout, MessageInfo, Response, StdError,
+    StdResult,
 };
 use cw2::set_contract_version;
 
@@ -34,12 +35,20 @@ pub fn execute(
         ExecuteMsg::Increment { channel } => Ok(Response::new()
             .add_attribute("method", "execute_increment")
             .add_attribute("channel", channel.clone())
+            // outbound IBC message, where packet is then received on other chain
             .add_message(IbcMsg::SendPacket {
                 channel_id: channel,
                 data: to_binary(&IbcExecuteMsg::Increment {})?,
                 timeout: IbcTimeout::with_timestamp(env.block.time.plus_seconds(300)),
             })),
     }
+}
+
+/// called on IBC packet receive in other chain
+pub fn try_increment(deps: DepsMut, channel: String) -> Result<u32, StdError> {
+    CONNECTION_COUNTS.update(deps.storage, channel, |count| -> StdResult<_> {
+        Ok(count.unwrap_or_default() + 1)
+    })
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
