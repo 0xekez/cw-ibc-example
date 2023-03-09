@@ -2,8 +2,8 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, DepsMut, Env, IbcBasicResponse, IbcChannel, IbcChannelCloseMsg,
-    IbcChannelConnectMsg, IbcChannelOpenMsg, IbcOrder, IbcPacketAckMsg, IbcPacketReceiveMsg,
-    IbcPacketTimeoutMsg, IbcReceiveResponse,
+    IbcChannelConnectMsg, IbcChannelOpenMsg, IbcChannelOpenResponse, IbcOrder, IbcPacketAckMsg,
+    IbcPacketReceiveMsg, IbcPacketTimeoutMsg, IbcReceiveResponse,
 };
 
 use crate::{
@@ -23,8 +23,9 @@ pub fn ibc_channel_open(
     _deps: DepsMut,
     _env: Env,
     msg: IbcChannelOpenMsg,
-) -> Result<(), ContractError> {
-    validate_order_and_version(msg.channel(), msg.counterparty_version())
+) -> Result<IbcChannelOpenResponse, ContractError> {
+    validate_order_and_version(msg.channel(), msg.counterparty_version())?;
+    Ok(None)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

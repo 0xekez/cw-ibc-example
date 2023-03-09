@@ -1,0 +1,27 @@
+name: simulation tests
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+
+      - name: Get cached just
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/bin/just
+          key: ${{ runner.os }}-just-${{ env.JUST_VERSION }}
+
+      - name: Install just
+        run: cargo install just || true
+
+      - name: simulation tests
+        run: just simtest

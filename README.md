@@ -122,3 +122,16 @@ junod query wasm contract-state smart juno1fsay0zux2vkyrsqpepd08q2vlytrfu7gsqnap
 2. Hermes will not pick up packets that were sent while it was not
    running. Start your relayer and wait for the log line `Hermes has
    started` before sending packets.
+
+## Testing
+
+To run IBC tests (you will need [just installed](https://just.systems/man/en/chapter_1.html)):
+
+```
+just simtest
+```
+
+This contract uses the Cosmos SDK's
+[simulator](https://docs.cosmos.network/main/core/simulation) to test
+IBC interactions between chains. Testing code and information about
+its setup can be found in the `tests` subdirectory.

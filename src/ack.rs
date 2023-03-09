@@ -1,11 +1,9 @@
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{to_binary, Binary};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 /// IBC ACK. See:
 /// https://github.com/cosmos/cosmos-sdk/blob/f999b1ff05a4db4a338a855713864497bedd4396/proto/ibc/core/channel/v1/channel.proto#L141-L147
-#[derive(Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum Ack {
     Result(Binary),
     Error(String),
