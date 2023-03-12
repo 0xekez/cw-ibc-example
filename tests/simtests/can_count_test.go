@@ -22,8 +22,8 @@ func TestIBCCounting(t *testing.T) {
 	//
 	// codeIDs are sequental so the contract will have code ID one
 	// on both chains.
-	chainA.StoreCodeFile("./wasms/cw_ibc_example.wasm")
-	chainB.StoreCodeFile("./wasms/cw_ibc_example.wasm")
+	chainA.StoreCodeFile("../wasms/cw_ibc_example.wasm")
+	chainB.StoreCodeFile("../wasms/cw_ibc_example.wasm")
 
 	// instantiate a cw_ibc_example contract on both chains and
 	// get its IBC port.

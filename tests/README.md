@@ -48,3 +48,22 @@ contracts, and running simulation tests against them.
 
 [`simulation.yml`](../.github/workflows/simulation.yml) contains an
 example GitHub Actions workflow to run these simulation tests in CI.
+
+### Setting up strangelove tests
+
+The lovely people at Strangelove have developed a testing framework
+called
+[Interchaintest](https://github.com/strangelove-ventures/interchaintest)
+for IBC that runs multiple docker container validators, and lets you
+test IBC enabled smart contracts. The `strangelove` directory provides
+a version of the simulation test above written with Interchaintest.
+
+There are a couple things to note when using it:
+
+1. Use the [`v4`
+   branch](https://github.com/strangelove-ventures/interchaintest/issues/424#issuecomment-1465521991)
+   for CosmWasm testing. The `go.mod` file included in this repository
+   does this for you if you want to use it yourself.
+2. When running `CosmosChain.QueryContract`, the response is in the
+   form: `{"data": QUERY_RESPONSE}`, so make note of this when
+   providing the response object to deserialize into.

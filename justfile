@@ -11,9 +11,12 @@ optimize:
         --platform linux/amd64 \
         cosmwasm/rust-optimizer:0.12.12; fi
 
-
-
 simtest: optimize
-    mkdir -p tests/simtests/wasms
-    if [[ $(uname -m) =~ "arm64" ]]; then cp artifacts/cw_ibc_example-aarch64.wasm tests/simtests/wasms/cw_ibc_example.wasm ; else cp artifacts/cw_ibc_example.wasm tests/simtests/wasms; fi
-    cd tests && go test ./...
+    mkdir -p tests/wasms
+    if [[ $(uname -m) =~ "arm64" ]]; then cp artifacts/cw_ibc_example-aarch64.wasm tests/wasms/cw_ibc_example.wasm ; else cp artifacts/cw_ibc_example.wasm tests/wasms; fi
+    cd tests/simtests && go test ./...
+
+interchaintest: optimize
+    mkdir -p tests/wasms
+    if [[ $(uname -m) =~ "arm64" ]]; then cp artifacts/cw_ibc_example-aarch64.wasm tests/wasms/cw_ibc_example.wasm ; else cp artifacts/cw_ibc_example.wasm tests/wasms; fi
+    cd tests/strangelove && go test ./...
