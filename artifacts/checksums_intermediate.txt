@@ -1,1 +1,1 @@
-dcc4803541e4ee4e95b22f12b3d274e4e23685bf8ccd4d47344b25405b9ac65f  ./target/wasm32-unknown-unknown/release/cw_ibc_example.wasm
+37c5fba72acba2216b4d21610ec82e2f1011f857350e60ea335a6c99f27104a9  ./target/wasm32-unknown-unknown/release/cw_ibc_example.wasm
