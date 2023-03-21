@@ -8,7 +8,7 @@ use cw2::set_contract_version;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, GetCountResponse, IbcExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::CONNECTION_COUNTS;
+use crate::state::{CONNECTION_COUNTS, TIMEOUT_COUNTS};
 
 const CONTRACT_NAME: &str = "crates.io:cw-ibc-example";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -39,7 +39,8 @@ pub fn execute(
             .add_message(IbcMsg::SendPacket {
                 channel_id: channel,
                 data: to_binary(&IbcExecuteMsg::Increment {})?,
-                timeout: IbcTimeout::with_timestamp(env.block.time.plus_seconds(300)),
+                // default timeout of two minutes.
+                timeout: IbcTimeout::with_timestamp(env.block.time.plus_seconds(120)),
             })),
     }
 }
@@ -55,11 +56,19 @@ pub fn try_increment(deps: DepsMut, channel: String) -> Result<u32, StdError> {
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetCount { channel } => to_binary(&query_count(deps, channel)?),
+        QueryMsg::GetTimeoutCount { channel } => to_binary(&query_timeout_count(deps, channel)?),
     }
 }
 
 fn query_count(deps: Deps, channel: String) -> StdResult<GetCountResponse> {
     let count = CONNECTION_COUNTS
+        .may_load(deps.storage, channel)?
+        .unwrap_or_default();
+    Ok(GetCountResponse { count })
+}
+
+fn query_timeout_count(deps: Deps, channel: String) -> StdResult<GetCountResponse> {
+    let count = TIMEOUT_COUNTS
         .may_load(deps.storage, channel)?
         .unwrap_or_default();
     Ok(GetCountResponse { count })

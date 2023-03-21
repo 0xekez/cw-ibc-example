@@ -2,11 +2,10 @@ package strangelove
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/hex"
-	"encoding/json"
 	"testing"
+	"time"
 
+	clienttypes "github.com/cosmos/ibc-go/v4/modules/core/02-client/types"
 	"github.com/strangelove-ventures/interchaintest/v4"
 	"github.com/strangelove-ventures/interchaintest/v4/chain/cosmos"
 	"github.com/strangelove-ventures/interchaintest/v4/chain/cosmos/wasm"
@@ -15,17 +14,20 @@ import (
 	"github.com/strangelove-ventures/interchaintest/v4/testutil"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
-func TestCanCount(t *testing.T) {
+// The default timeout of packets sent by the cw-ibc-example contract.
+const DEFAULT_TIMEOUT = time.Minute * 2
+
+// Sets up two chains, creates a connection between them with a very
+// small trusting period, creates a channel between two cw-ibc-example
+// contracts on that channel, causes the channel to expire.
+func TestLightClientExpiry(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	// Create a new factory and build a local juno and osmosis
-	// chain.
-	//
-	// w/ no gas adjustment, storing contracts fails w/
-	// out-of-gas.
 	cf := interchaintest.NewBuiltinChainFactory(zaptest.NewLogger(t), []*interchaintest.ChainSpec{
 		{
 			Name:      "juno",
@@ -61,6 +63,8 @@ func TestCanCount(t *testing.T) {
 	).Build(t, client, network)
 
 	const ibcPath = "juno-juno"
+	trustingPeriod := time.Duration(time.Minute * 1)
+
 	ic := interchaintest.NewInterchain().
 		AddChain(left).
 		AddChain(right).
@@ -70,9 +74,11 @@ func TestCanCount(t *testing.T) {
 			Chain2:  right,
 			Relayer: relayer,
 			Path:    ibcPath,
+			CreateClientOpts: ibc.CreateClientOptions{
+				TrustingPeriod: trustingPeriod.String(),
+			},
 		})
 
-	// NopReporter doesn't write to a log file.
 	erp := testreporter.NewNopReporter().RelayerExecReporter(t)
 	err = ic.Build(ctx, erp, interchaintest.InterchainBuildOptions{
 		TestName:         t.Name(),
@@ -149,7 +155,10 @@ func TestCanCount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rightChannel := channelInfo[len(channelInfo)-2].ChannelID
+	// TODO: this fails intermitently with index -1 is out of
+	// bounds. Seems like there is a race between the token
+	// transfer and our channel.
+	rightChannel := channelInfo[len(channelInfo)-2].ChannelID // two channels by default: ours and ics-20-transfer
 
 	_, err = leftCosmosChain.ExecuteContract(ctx, leftUser.KeyName, leftContract, "{\"increment\": { \"channel\":\""+leftChannel+"\"}}")
 	if err != nil {
@@ -161,26 +170,6 @@ func TestCanCount(t *testing.T) {
 	err = testutil.WaitForBlocks(ctx, 10, left, right)
 	require.NoError(t, err)
 
-	cmd := []string{right.Config().Bin, "query", "wasm", "contract-state", "all", rightContract,
-		"--node", right.GetRPCAddress(),
-		"--home", right.HomeDir(),
-		"--chain-id", right.Config().ChainID,
-		"--output", "json",
-	}
-	stdout, _, err := right.Exec(ctx, cmd, nil)
-	require.NoError(t, err)
-	results := &contractStateResp{}
-	err = json.Unmarshal(stdout, results)
-	require.NoError(t, err)
-
-	t.Log("dumping state")
-	for _, kv := range results.Models {
-		keyBytes, _ := hex.DecodeString(kv.Key)
-		valueBytes, err := base64.StdEncoding.DecodeString(kv.Value)
-		require.NoError(t, err)
-		t.Logf("------------> %s -> %s", string(keyBytes), string(valueBytes))
-	}
-
 	queryMsg := QueryMsg{
 		GetCount: &GetCount{Channel: rightChannel},
 	}
@@ -190,30 +179,88 @@ func TestCanCount(t *testing.T) {
 		t.Fatal(err)
 	}
 	require.Equal(t, uint32(1), resp.Data.Count)
-}
 
-type QueryResponse struct {
-	Data GetCountQuery `json:"data"`
-}
+	// Stop the relayer for the trusting period. This should cause
+	// the channel to expire as the light client should time out.
+	relayer.StopRelayer(ctx, erp)
+	time.Sleep(trustingPeriod)
+	relayer.UpdateClients(ctx, erp, ibcPath)
 
-type GetCountQuery struct {
-	Count uint32 `json:"count"`
-}
+	// First, we check that the client is in the expired state.
+	grpcConn, err := grpc.Dial(
+		leftCosmosChain.GetHostGRPCAddress(),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := grpcConn.Close(); err != nil {
+			t.Logf("closing GRPC: %s", err)
+		}
+	})
 
-type QueryMsg struct {
-	GetCount        *GetCount `json:"get_count,omitempty"`
-	GetTimeoutCount *GetCount `json:"get_timeout_count,omitempty"`
-}
+	clientClient := clienttypes.NewQueryClient(grpcConn)
+	statusResp, err := clientClient.ClientStatus(ctx, &clienttypes.QueryClientStatusRequest{
+		ClientId: "07-tendermint-0",
+	})
+	if err != nil {
+		t.Fatal("querying client state:", err)
+	}
+	require.Equal(t, "Expired", statusResp.Status)
 
-type GetCount struct {
-	Channel string `json:"channel"`
-}
+	// Having confirmed that the client is expired, we now check
+	// the connection. Interestingly, the connection remains open
+	// even if the client is expired!
+	queryMsg = QueryMsg{
+		GetCount: &GetCount{Channel: rightChannel},
+	}
+	err = rightCosmosChain.QueryContract(ctx, rightContract, queryMsg, &resp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, uint32(1), resp.Data.Count)
 
-type kvPair struct {
-	Key   string // hex encoded string
-	Value string // b64 encoded json
-}
+	connections, err := relayer.GetConnections(ctx, erp, left.Config().ChainID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, "STATE_OPEN", connections[0].State)
 
-type contractStateResp struct {
-	Models []kvPair
+	// Now, we restart the relayer and attempt to send a packet
+	// over the connection with the expired client.
+	relayer.StartRelayer(ctx, erp, ibcPath)
+	_, err = leftCosmosChain.ExecuteContract(ctx, leftUser.KeyName, leftContract, "{\"increment\": { \"channel\":\""+leftChannel+"\"}}")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Wait for the timeout duration.
+	time.Sleep(DEFAULT_TIMEOUT)
+	// give the relayer some time to relay the timeout back (if it
+	// were to be sendable).
+	err = testutil.WaitForBlocks(ctx, 10, left, right)
+	require.NoError(t, err)
+
+	err = rightCosmosChain.QueryContract(ctx, rightContract, queryMsg, &resp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// We don't expect the packet to get delivered as the client
+	// is expired, so the count should still be one.
+	require.Equal(t, uint32(1), resp.Data.Count)
+
+	timeoutQuery := QueryMsg{
+		GetTimeoutCount: &GetCount{Channel: leftChannel},
+	}
+	var timeoutResp QueryResponse
+	err = leftCosmosChain.QueryContract(ctx, leftContract, timeoutQuery, &resp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// As we've waited for the timeout duration, and then an
+	// additional ten blocks, the timeout still not being
+	// delivered seems like strong evidence that timeouts do not
+	// get delivered for expired clients.
+	require.Equal(t, uint32(0), timeoutResp.Data.Count)
 }

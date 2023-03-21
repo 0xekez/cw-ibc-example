@@ -19,9 +19,14 @@ pub enum QueryMsg {
     // GetCount returns the current count as a json-encoded number
     #[returns(crate::msg::GetCountResponse)]
     GetCount {
-        // The ID of the channel you'd like to query the count for.
+        // The ID of the LOCAL channel you'd like to query the count
+        // for.
         channel: String,
     },
+    // GetTimeoutCount returns the number of timeouts have occured on
+    // the LOCAL channel `channel`.
+    #[returns(crate::msg::GetCountResponse)]
+    GetTimeoutCount { channel: String },
 }
 
 // We define a custom struct for each query response
