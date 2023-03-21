@@ -3,7 +3,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, DepsMut, Env, IbcBasicResponse, IbcChannel, IbcChannelCloseMsg,
     IbcChannelConnectMsg, IbcChannelOpenMsg, IbcChannelOpenResponse, IbcOrder, IbcPacketAckMsg,
-    IbcPacketReceiveMsg, IbcPacketTimeoutMsg, IbcReceiveResponse,
+    IbcPacketReceiveMsg, IbcPacketTimeoutMsg, IbcReceiveResponse, StdResult,
 };
 
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
     contract::try_increment,
     error::Never,
     msg::IbcExecuteMsg,
-    state::CONNECTION_COUNTS,
+    state::{CONNECTION_COUNTS, TIMEOUT_COUNTS},
     ContractError,
 };
 
@@ -116,10 +116,17 @@ pub fn ibc_packet_ack(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn ibc_packet_timeout(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
-    _msg: IbcPacketTimeoutMsg,
+    msg: IbcPacketTimeoutMsg,
 ) -> Result<IbcBasicResponse, ContractError> {
+    TIMEOUT_COUNTS.update(
+        deps.storage,
+        // timed out packets are sent by us, so lookup based on packet
+        // source, not destination.
+        msg.packet.src.channel_id,
+        |count| -> StdResult<_> { Ok(count.unwrap_or_default() + 1) },
+    )?;
     // As with ack above, nothing to do here. If we cared about
     // keeping track of state between the two chains then we'd want to
     // respond to this likely as it means that the packet in question

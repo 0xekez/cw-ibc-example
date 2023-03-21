@@ -1,1 +1,1 @@
-8bda92fa39fc5d4cdb1b6dff2f5db04e6f21cdead6f94506f246f96088e65c94  cw_ibc_example-aarch64.wasm
+9a27a265f94a8ed4c2444e328691332afe59120064fc5f91c4ae945b569482b6  cw_ibc_example-aarch64.wasm
