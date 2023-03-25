@@ -2,10 +2,8 @@ package strangelove
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/hex"
-	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/strangelove-ventures/interchaintest/v4"
 	"github.com/strangelove-ventures/interchaintest/v4/chain/cosmos"
@@ -18,15 +16,13 @@ import (
 	"withoutdoing.com/m/v2/helper"
 )
 
-func TestCanCount(t *testing.T) {
+// Sets up two chains, creates a connection between them with a very
+// small trusting period, creates a channel between two cw-ibc-example
+// contracts on that channel, causes the channel to expire.
+func TestLightClientExpiry2(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	// Create a new factory and build a local juno and osmosis
-	// chain.
-	//
-	// w/ no gas adjustment, storing contracts fails w/
-	// out-of-gas.
 	cf := interchaintest.NewBuiltinChainFactory(zaptest.NewLogger(t), []*interchaintest.ChainSpec{
 		{
 			Name:      "juno",
@@ -48,9 +44,11 @@ func TestCanCount(t *testing.T) {
 				GasPrices:      "0.00ujuno",
 				GasAdjustment:  2.0,
 				EncodingConfig: wasm.WasmEncoding(),
+				
 			},
 			NumValidators: helper.Ptr(1),
 			NumFullNodes:  helper.Ptr(0),
+
 		},
 	})
 	chains, err := cf.Chains(t.Name())
@@ -66,6 +64,8 @@ func TestCanCount(t *testing.T) {
 	).Build(t, client, network)
 
 	const ibcPath = "juno-juno"
+	trustingPeriod := time.Duration(time.Minute * 1)
+
 	ic := interchaintest.NewInterchain().
 		AddChain(left).
 		AddChain(right).
@@ -75,9 +75,11 @@ func TestCanCount(t *testing.T) {
 			Chain2:  right,
 			Relayer: relayer,
 			Path:    ibcPath,
+			CreateClientOpts: ibc.CreateClientOptions{
+				TrustingPeriod: trustingPeriod.String(),
+			},
 		})
 
-	// NopReporter doesn't write to a log file.
 	erp := testreporter.NewNopReporter().RelayerExecReporter(t)
 	err = ic.Build(ctx, erp, interchaintest.InterchainBuildOptions{
 		TestName:         t.Name(),
@@ -123,6 +125,7 @@ func TestCanCount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	rightCosmosChain.InstantiateContract(ctx, rightUser.KeyName, codeId, "{}", true)
 	rightContract, err := rightCosmosChain.InstantiateContract(ctx, rightUser.KeyName, codeId, "{}", true)
 	if err != nil {
 		t.Fatal(err)
@@ -149,50 +152,12 @@ func TestCanCount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	leftChannel := channelInfo[len(channelInfo)-1].ChannelID
-	channelInfo, err = relayer.GetChannels(ctx, erp, right.Config().ChainID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	rightChannel := channelInfo[len(channelInfo)-2].ChannelID
 
-	_, err = leftCosmosChain.ExecuteContract(ctx, leftUser.KeyName, leftContract, "{\"increment\": { \"channel\":\""+leftChannel+"\"}}")
-	if err != nil {
-		t.Fatal(err)
-	}
+	leftChannel := channelInfo[1].ChannelID
+	rightChannel := channelInfo[1].Counterparty.ChannelID
 
-	// wait a couple blocks for the incrementing to relay to the
-	// right chain.
-	err = testutil.WaitForBlocks(ctx, 10, left, right)
-	require.NoError(t, err)
+	t.Logf("channel info: %+v", channelInfo)
 
-	cmd := []string{right.Config().Bin, "query", "wasm", "contract-state", "all", rightContract,
-		"--node", right.GetRPCAddress(),
-		"--home", right.HomeDir(),
-		"--chain-id", right.Config().ChainID,
-		"--output", "json",
-	}
-	stdout, _, err := right.Exec(ctx, cmd, nil)
-	require.NoError(t, err)
-	results := &helper.ContractStateResp{}
-	err = json.Unmarshal(stdout, results)
-	require.NoError(t, err)
-
-	t.Log("dumping state")
-	for _, kv := range results.Models {
-		keyBytes, _ := hex.DecodeString(kv.Key)
-		valueBytes, err := base64.StdEncoding.DecodeString(kv.Value)
-		require.NoError(t, err)
-		t.Logf("------------> %s -> %s", string(keyBytes), string(valueBytes))
-	}
-
-	queryMsg := helper.QueryMsg{
-		GetCount: &helper.GetCount{Channel: rightChannel},
-	}
-	var resp helper.QueryResponse
-	err = rightCosmosChain.QueryContract(ctx, rightContract, queryMsg, &resp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	require.Equal(t, uint32(1), resp.Data.Count)
+	t.Logf("left channel: %+v", leftChannel)
+	t.Logf("right channel: %+v", rightChannel)
 }
