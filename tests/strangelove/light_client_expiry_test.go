@@ -16,6 +16,7 @@ import (
 	"go.uber.org/zap/zaptest"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"withoutdoing.com/m/v2/helper"
 )
 
 // The default timeout of packets sent by the cw-ibc-example contract.
@@ -38,6 +39,8 @@ func TestLightClientExpiry(t *testing.T) {
 				GasAdjustment:  2.0,
 				EncodingConfig: wasm.WasmEncoding(),
 			},
+			NumValidators: helper.Ptr(1),
+			NumFullNodes:  helper.Ptr(0),
 		},
 		{
 			Name:      "juno",
@@ -48,6 +51,8 @@ func TestLightClientExpiry(t *testing.T) {
 				GasAdjustment:  2.0,
 				EncodingConfig: wasm.WasmEncoding(),
 			},
+			NumValidators: helper.Ptr(1),
+			NumFullNodes:  helper.Ptr(0),
 		},
 	})
 	chains, err := cf.Chains(t.Name())
@@ -150,15 +155,8 @@ func TestLightClientExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	leftChannel := channelInfo[len(channelInfo)-1].ChannelID
-	channelInfo, err = relayer.GetChannels(ctx, erp, right.Config().ChainID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// TODO: this fails intermitently with index -1 is out of
-	// bounds. Seems like there is a race between the token
-	// transfer and our channel.
-	rightChannel := channelInfo[len(channelInfo)-2].ChannelID // two channels by default: ours and ics-20-transfer
+	leftChannel := channelInfo[1].ChannelID
+	rightChannel := channelInfo[1].Counterparty.ChannelID
 
 	_, err = leftCosmosChain.ExecuteContract(ctx, leftUser.KeyName, leftContract, "{\"increment\": { \"channel\":\""+leftChannel+"\"}}")
 	if err != nil {
@@ -170,10 +168,10 @@ func TestLightClientExpiry(t *testing.T) {
 	err = testutil.WaitForBlocks(ctx, 10, left, right)
 	require.NoError(t, err)
 
-	queryMsg := QueryMsg{
-		GetCount: &GetCount{Channel: rightChannel},
+	queryMsg := helper.QueryMsg{
+		GetCount: &helper.GetCount{Channel: rightChannel},
 	}
-	var resp QueryResponse
+	var resp helper.QueryResponse
 	err = rightCosmosChain.QueryContract(ctx, rightContract, queryMsg, &resp)
 	if err != nil {
 		t.Fatal(err)
@@ -184,7 +182,6 @@ func TestLightClientExpiry(t *testing.T) {
 	// the channel to expire as the light client should time out.
 	relayer.StopRelayer(ctx, erp)
 	time.Sleep(trustingPeriod)
-	relayer.UpdateClients(ctx, erp, ibcPath)
 
 	// First, we check that the client is in the expired state.
 	grpcConn, err := grpc.Dial(
@@ -212,8 +209,8 @@ func TestLightClientExpiry(t *testing.T) {
 	// Having confirmed that the client is expired, we now check
 	// the connection. Interestingly, the connection remains open
 	// even if the client is expired!
-	queryMsg = QueryMsg{
-		GetCount: &GetCount{Channel: rightChannel},
+	queryMsg = helper.QueryMsg{
+		GetCount: &helper.GetCount{Channel: rightChannel},
 	}
 	err = rightCosmosChain.QueryContract(ctx, rightContract, queryMsg, &resp)
 	if err != nil {
@@ -250,10 +247,10 @@ func TestLightClientExpiry(t *testing.T) {
 	// is expired, so the count should still be one.
 	require.Equal(t, uint32(1), resp.Data.Count)
 
-	timeoutQuery := QueryMsg{
-		GetTimeoutCount: &GetCount{Channel: leftChannel},
+	timeoutQuery := helper.QueryMsg{
+		GetTimeoutCount: &helper.GetCount{Channel: leftChannel},
 	}
-	var timeoutResp QueryResponse
+	var timeoutResp helper.QueryResponse
 	err = leftCosmosChain.QueryContract(ctx, leftContract, timeoutQuery, &resp)
 	if err != nil {
 		t.Fatal(err)

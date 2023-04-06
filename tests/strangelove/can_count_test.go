@@ -15,6 +15,7 @@ import (
 	"github.com/strangelove-ventures/interchaintest/v4/testutil"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
+	"withoutdoing.com/m/v2/helper"
 )
 
 func TestCanCount(t *testing.T) {
@@ -36,6 +37,8 @@ func TestCanCount(t *testing.T) {
 				GasAdjustment:  2.0,
 				EncodingConfig: wasm.WasmEncoding(),
 			},
+			NumValidators: helper.Ptr(1),
+			NumFullNodes:  helper.Ptr(0),
 		},
 		{
 			Name:      "juno",
@@ -46,6 +49,8 @@ func TestCanCount(t *testing.T) {
 				GasAdjustment:  2.0,
 				EncodingConfig: wasm.WasmEncoding(),
 			},
+			NumValidators: helper.Ptr(1),
+			NumFullNodes:  helper.Ptr(0),
 		},
 	})
 	chains, err := cf.Chains(t.Name())
@@ -169,7 +174,7 @@ func TestCanCount(t *testing.T) {
 	}
 	stdout, _, err := right.Exec(ctx, cmd, nil)
 	require.NoError(t, err)
-	results := &contractStateResp{}
+	results := &helper.ContractStateResp{}
 	err = json.Unmarshal(stdout, results)
 	require.NoError(t, err)
 
@@ -181,39 +186,13 @@ func TestCanCount(t *testing.T) {
 		t.Logf("------------> %s -> %s", string(keyBytes), string(valueBytes))
 	}
 
-	queryMsg := QueryMsg{
-		GetCount: &GetCount{Channel: rightChannel},
+	queryMsg := helper.QueryMsg{
+		GetCount: &helper.GetCount{Channel: rightChannel},
 	}
-	var resp QueryResponse
+	var resp helper.QueryResponse
 	err = rightCosmosChain.QueryContract(ctx, rightContract, queryMsg, &resp)
 	if err != nil {
 		t.Fatal(err)
 	}
 	require.Equal(t, uint32(1), resp.Data.Count)
-}
-
-type QueryResponse struct {
-	Data GetCountQuery `json:"data"`
-}
-
-type GetCountQuery struct {
-	Count uint32 `json:"count"`
-}
-
-type QueryMsg struct {
-	GetCount        *GetCount `json:"get_count,omitempty"`
-	GetTimeoutCount *GetCount `json:"get_timeout_count,omitempty"`
-}
-
-type GetCount struct {
-	Channel string `json:"channel"`
-}
-
-type kvPair struct {
-	Key   string // hex encoded string
-	Value string // b64 encoded json
-}
-
-type contractStateResp struct {
-	Models []kvPair
 }
